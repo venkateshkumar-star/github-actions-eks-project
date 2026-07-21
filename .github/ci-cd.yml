@@ -1,0 +1,75 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: flask-app
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker Image
+        run: |
+          docker build -t $IMAGE_NAME ./app
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget -y
+          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.62.0_Linux-64bit.deb
+          sudo dpkg -i trivy_0.62.0_Linux-64bit.deb
+
+      - name: Run Trivy Scan
+        run: |
+          trivy image $IMAGE_NAME
+
+      - name: Tag Image
+        run: |
+          docker tag $IMAGE_NAME \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Push Image
+        run: |
+          docker push \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+          --region ${{ secrets.AWS_REGION }} \
+          --name ${{ secrets.EKS_CLUSTER }}
+
+      - name: Replace Image
+        run: |
+          sed -i "s|IMAGE|${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" k8s/deployment.yaml
+
+      - name: Deploy
+        run: |
+          kubectl apply -f k8s/
+
+      - name: Verify Deployment
+        run: |
+          kubectl get pods
+          kubectl get svc
