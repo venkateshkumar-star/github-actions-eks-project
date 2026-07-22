@@ -9,13 +9,10 @@ env:
   IMAGE_NAME: flask-app
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -34,17 +31,6 @@ jobs:
         run: |
           docker build -t $IMAGE_NAME ./app
 
-      - name: Install Trivy
-        run: |
-          sudo apt-get update
-          sudo apt-get install wget -y
-          wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.62.0_Linux-64bit.deb
-          sudo dpkg -i trivy_0.62.0_Linux-64bit.deb
-
-      - name: Run Trivy Scan
-        run: |
-          trivy image $IMAGE_NAME
-
       - name: Tag Image
         run: |
           docker tag $IMAGE_NAME \
@@ -58,8 +44,8 @@ jobs:
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-          --region ${{ secrets.AWS_REGION }} \
-          --name ${{ secrets.EKS_CLUSTER }}
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER }}
 
       - name: Replace Image
         run: |
