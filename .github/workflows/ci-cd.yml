@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   IMAGE_NAME: flask-app
@@ -27,6 +28,16 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Debug AWS Variables
+        run: |
+          echo "AWS Account ID: ${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "AWS Region: ${{ secrets.AWS_REGION }}"
+          echo "ECR Repository: ${{ secrets.ECR_REPOSITORY }}"
+
+      - name: List ECR Repositories
+        run: |
+          aws ecr describe-repositories --region ca-central-1
+
       - name: Build Docker Image
         run: |
           docker build -t $IMAGE_NAME ./app
@@ -34,22 +45,22 @@ jobs:
       - name: Tag Image
         run: |
           docker tag $IMAGE_NAME \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ca-central-1.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
       - name: Push Image
         run: |
           docker push \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ca-central-1.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-            --region ${{ secrets.AWS_REGION }} \
+            --region ca-central-1 \
             --name ${{ secrets.EKS_CLUSTER }}
 
       - name: Replace Image
         run: |
-          sed -i "s|IMAGE|${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|IMAGE|${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ca-central-1.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" k8s/deployment.yaml
 
       - name: Deploy
         run: |
