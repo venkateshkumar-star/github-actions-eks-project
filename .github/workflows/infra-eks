@@ -1,0 +1,41 @@
+name: Infrastructure - EKS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-eks:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: production-infra   # Manual approval
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ca-central-1
+
+      - name: Install eksctl
+        run: |
+          curl --silent --location \
+          "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" \
+          | tar xz
+          sudo mv eksctl /usr/local/bin
+
+      - name: Create EKS
+        run: |
+          eksctl create cluster \
+            --name demo-eks \
+            --region ca-central-1 \
+            --version 1.30 \
+            --nodegroup-name workers \
+            --node-type t3.medium \
+            --nodes 2 \
+            --nodes-min 2 \
+            --nodes-max 4 \
+            --managed
